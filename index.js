@@ -1,7 +1,10 @@
 var unparse = require('escodegen').generate;
 
 module.exports = function (ast, vars, fallback) {
-    if (!vars) vars = {};
+    if (typeof vars === 'function') {
+        fallback = vars;
+        vars = {};
+    } else if (!vars) vars = {};
     var FAIL = {};
     var lastNode, fail;
     if (fallback) {
@@ -29,7 +32,7 @@ module.exports = function (ast, vars, fallback) {
             var xs = [];
             for (var i = 0, l = node.elements.length; i < l; i++) {
                 var x = walk(node.elements[i]);
-                if (x === FAIL) return fail();
+                if (x === FAIL) return FAIL;
                 xs.push(x);
             }
             return xs;
@@ -42,7 +45,7 @@ module.exports = function (ast, vars, fallback) {
                     ? prop.value
                     : walk(prop.value)
                 ;
-                if (value === FAIL) return fail();
+                if (value === FAIL) return FAIL;
                 obj[prop.key.value || prop.key.name] = value;
             }
             return obj;
@@ -50,9 +53,9 @@ module.exports = function (ast, vars, fallback) {
         else if (node.type === 'BinaryExpression' ||
                  node.type === 'LogicalExpression') {
             var l = walk(node.left);
-            if (l === FAIL) return fail();
+            if (l === FAIL) return FAIL;
             var r = walk(node.right);
-            if (r === FAIL) return fail();
+            if (r === FAIL) return FAIL;
 
             var op = node.operator;
             if (op === '==') return l == r;
@@ -90,7 +93,7 @@ module.exports = function (ast, vars, fallback) {
         }
         else if (node.type === 'CallExpression') {
             var callee = walk(node.callee);
-            if (callee === FAIL) return fail();
+            if (callee === FAIL) return FAIL;
             if (typeof callee !== 'function') return fail();
 
             var ctx = node.callee.object ? walk(node.callee.object) : FAIL;
@@ -99,24 +102,24 @@ module.exports = function (ast, vars, fallback) {
             var args = [];
             for (var i = 0, l = node.arguments.length; i < l; i++) {
                 var x = walk(node.arguments[i]);
-                if (x === FAIL) return fail();
+                if (x === FAIL) return FAIL;
                 args.push(x);
             }
             return callee.apply(ctx, args);
         }
         else if (node.type === 'MemberExpression') {
             var obj = walk(node.object);
-            if (obj === FAIL) return fail();
+            if (obj === FAIL) return FAIL;
             if (node.property.type === 'Identifier') {
                 return obj[node.property.name];
             }
             var prop = walk(node.property);
-            if (prop === FAIL) return fail();
+            if (prop === FAIL) return FAIL;
             return obj[prop];
         }
         else if (node.type === 'ConditionalExpression') {
             var val = walk(node.test)
-            if (val === FAIL) return fail();
+            if (val === FAIL) return FAIL;
             return val ? walk(node.consequent) : walk(node.alternate)
         }
         else if (/FunctionExpression/.test(node.type)) {
