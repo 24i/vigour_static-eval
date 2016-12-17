@@ -4,6 +4,13 @@ module.exports = function (ast, vars, fallback) {
     if (!vars) vars = {};
     var FAIL = {};
     var lastNode
+    var fail = fallback
+        ? function () {
+            var value = fallback(lastNode)
+            return value !== undefined ? value : FAIL
+        }
+        : function () { return FAIL }
+
     var result = (function walk (node) {
         lastNode = node
         if (node.type === 'Literal') {
@@ -15,13 +22,13 @@ module.exports = function (ast, vars, fallback) {
             if (node.operator === '-') return -val
             if (node.operator === '~') return ~val
             if (node.operator === '!') return !val
-            return FAIL
+            return fail()
         }
         else if (node.type === 'ArrayExpression') {
             var xs = [];
             for (var i = 0, l = node.elements.length; i < l; i++) {
                 var x = walk(node.elements[i]);
-                if (x === FAIL) return FAIL;
+                if (x === FAIL) return fail();
                 xs.push(x);
             }
             return xs;
@@ -34,7 +41,7 @@ module.exports = function (ast, vars, fallback) {
                     ? prop.value
                     : walk(prop.value)
                 ;
-                if (value === FAIL) return FAIL;
+                if (value === FAIL) return fail();
                 obj[prop.key.value || prop.key.name] = value;
             }
             return obj;
@@ -42,9 +49,9 @@ module.exports = function (ast, vars, fallback) {
         else if (node.type === 'BinaryExpression' ||
                  node.type === 'LogicalExpression') {
             var l = walk(node.left);
-            if (l === FAIL) return FAIL;
+            if (l === FAIL) return fail();
             var r = walk(node.right);
-            if (r === FAIL) return FAIL;
+            if (r === FAIL) return fail();
 
             var op = node.operator;
             if (op === '==') return l == r;
@@ -66,24 +73,24 @@ module.exports = function (ast, vars, fallback) {
             if (op === '&&') return l && r;
             if (op === '||') return l || r;
 
-            return FAIL;
+            return fail();
         }
         else if (node.type === 'Identifier') {
             if ({}.hasOwnProperty.call(vars, node.name)) {
                 return vars[node.name];
             }
-            else return FAIL;
+            else return fail();
         }
         else if (node.type === 'ThisExpression') {
             if ({}.hasOwnProperty.call(vars, 'this')) {
                 return vars['this'];
             }
-            else return FAIL;
+            else return fail();
         }
         else if (node.type === 'CallExpression') {
             var callee = walk(node.callee);
-            if (callee === FAIL) return FAIL;
-            if (typeof callee !== 'function') return FAIL;
+            if (callee === FAIL) return fail();
+            if (typeof callee !== 'function') return fail();
 
             var ctx = node.callee.object ? walk(node.callee.object) : FAIL;
             if (ctx === FAIL) ctx = null;
@@ -91,24 +98,24 @@ module.exports = function (ast, vars, fallback) {
             var args = [];
             for (var i = 0, l = node.arguments.length; i < l; i++) {
                 var x = walk(node.arguments[i]);
-                if (x === FAIL) return FAIL;
+                if (x === FAIL) return fail();
                 args.push(x);
             }
             return callee.apply(ctx, args);
         }
         else if (node.type === 'MemberExpression') {
             var obj = walk(node.object);
-            if (obj === FAIL) return FAIL;
+            if (obj === FAIL) return fail();
             if (node.property.type === 'Identifier') {
                 return obj[node.property.name];
             }
             var prop = walk(node.property);
-            if (prop === FAIL) return FAIL;
+            if (prop === FAIL) return fail();
             return obj[prop];
         }
         else if (node.type === 'ConditionalExpression') {
             var val = walk(node.test)
-            if (val === FAIL) return FAIL;
+            if (val === FAIL) return fail();
             return val ? walk(node.consequent) : walk(node.alternate)
         }
         else if (/FunctionExpression/.test(node.type)) {
@@ -137,8 +144,8 @@ module.exports = function (ast, vars, fallback) {
         else if (node.type === 'TemplateElement') {
             return node.value.cooked;
         }
-        else return FAIL;
+        else return fail();
     })(ast);
 
-    return result === FAIL ? fallback && fallback(lastNode) : result
+    return result === FAIL ? undefined : result
 };
