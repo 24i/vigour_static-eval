@@ -3,14 +3,15 @@ var unparse = require('escodegen').generate;
 module.exports = function (ast, vars, fallback) {
     if (!vars) vars = {};
     var FAIL = {};
-    var lastNode
-    var fail = fallback
-        ? function () {
+    var lastNode, fail;
+    if (fallback) {
+        fail = function () {
             var value = fallback(lastNode)
             return value !== undefined ? value : FAIL
-        }
-        : function () { return FAIL }
-
+        };
+    } else {
+        fail = function () { return FAIL }
+    }
     var result = (function walk (node) {
         lastNode = node
         if (node.type === 'Literal') {
