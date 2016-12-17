@@ -1,10 +1,11 @@
 var unparse = require('escodegen').generate;
 
-module.exports = function (ast, vars) {
+module.exports = function (ast, vars, fallback) {
     if (!vars) vars = {};
     var FAIL = {};
-    
+    var lastNode
     var result = (function walk (node) {
+        lastNode = node
         if (node.type === 'Literal') {
             return node.value;
         }
@@ -44,7 +45,7 @@ module.exports = function (ast, vars) {
             if (l === FAIL) return FAIL;
             var r = walk(node.right);
             if (r === FAIL) return FAIL;
-            
+
             var op = node.operator;
             if (op === '==') return l == r;
             if (op === '===') return l === r;
@@ -64,7 +65,7 @@ module.exports = function (ast, vars) {
             if (op === '^') return l ^ r;
             if (op === '&&') return l && r;
             if (op === '||') return l || r;
-            
+
             return FAIL;
         }
         else if (node.type === 'Identifier') {
@@ -83,7 +84,7 @@ module.exports = function (ast, vars) {
             var callee = walk(node.callee);
             if (callee === FAIL) return FAIL;
             if (typeof callee !== 'function') return FAIL;
-            
+
             var ctx = node.callee.object ? walk(node.callee.object) : FAIL;
             if (ctx === FAIL) ctx = null;
 
@@ -110,7 +111,7 @@ module.exports = function (ast, vars) {
             if (val === FAIL) return FAIL;
             return val ? walk(node.consequent) : walk(node.alternate)
         }
-        else if (node.type === 'FunctionExpression') {
+        else if (/FunctionExpression/.test(node.type)) {
             var keys = Object.keys(vars);
             var vals = keys.map(function(key) {
                 return vars[key];
@@ -138,6 +139,6 @@ module.exports = function (ast, vars) {
         }
         else return FAIL;
     })(ast);
-    
-    return result === FAIL ? undefined : result;
+
+    return result === FAIL ? fallback && fallback(lastNode) : result
 };
